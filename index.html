@@ -2,28 +2,14 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <link rel="icon" href="data:,">
-<title>Helix Club v1</title>
-<style>
-html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:ui-monospace,Menlo,monospace;color:#a6ff00}
-#hud{position:fixed;left:10px;top:10px;z-index:5;background:#000a;border:1px solid #a6ff0055;padding:8px 10px;border-radius:8px;font-size:12px;max-width:300px}
-#hud b{font-size:15px}#sec{font-size:20px;letter-spacing:2px}
-#hud button{background:#111;color:#a6ff00;border:1px solid #a6ff00;border-radius:5px;margin:2px;padding:4px 7px;font:inherit;cursor:pointer}
-#hud button.on{background:#a6ff00;color:#000}
-#help{opacity:.75;margin-top:4px;line-height:1.4}
-#drop{position:fixed;inset:0;display:none;align-items:center;justify-content:center;font-size:30px;background:#000c;z-index:9}
-#joy{position:fixed;left:30px;bottom:40px;width:110px;height:110px;border:2px solid #a6ff0088;border-radius:50%;z-index:6;display:none;touch-action:none}
-#knob{position:absolute;left:35px;top:35px;width:40px;height:40px;border-radius:50%;background:#a6ff00aa}
-</style>
+<title>Helix Void</title>
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden;font:12px ui-monospace,Menlo,monospace;color:#9ab0ff}
+#hud{position:fixed;left:10px;top:10px;z-index:5;background:#000a;border:1px solid #2a4dff55;padding:6px 9px;border-radius:8px}
+#hud button{background:#000;color:#9ab0ff;border:1px solid #2a4dff;border-radius:5px;margin:2px;padding:3px 6px;font:inherit;cursor:pointer}</style>
 <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
 </head><body>
-<div id="hud"><b>HELIX CLUB</b> v1 realistic · <span id="sec">OPEN</span> <span id="bpm"></span><br>
-<span>Source:</span>
-<button data-src="sim" class="on">Sim cues</button><button data-src="demo">Demo track</button><button data-src="mic">Mic</button><button id="filebtn">MP3…</button>
-<input id="file" type="file" accept="audio/*" hidden><br>
-<span>Force:</span> <button data-f="open">1 Open</button><button data-f="build">2 Build</button><button data-f="drop">3 Drop</button><button data-f="auto">0 Auto</button><br>
-<button id="balc">Balcony</button><button id="floor">Floor</button><button id="hide">hide</button>
-<div id="help">Desktop: click to look, WASD/arrows move, 1/2/3/0 sections, B balcony. Phone: left joystick, drag right side to look. Quest: Enter VR, left stick moves, right stick snap-turns. Drop an MP3 anywhere.</div></div>
-<div id="joy"><div id="knob"></div></div>
-<div id="drop">Drop audio to play it in the club</div>
+<div id="hud"><b>HELIX VOID</b> <span id="sec">OPEN</span> <span id="info"></span><br>
+<button data-f="open">1 Open</button><button data-f="build">2 Build</button><button data-f="drop">3 Drop</button><button data-f="auto">0 Auto</button><button id="hide">hide</button><br>
+<span style="opacity:.7">Drag to look · Quest: Enter VR · ?helix=http://127.0.0.1:27183 (bridge) · F = fps</span></div>
 <script type="module" src="./main.js"></script>
 </body></html>
