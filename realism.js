@@ -4,6 +4,8 @@
 import * as THREE from 'three';
 import { batchScene } from './batch.js';
 import { applyVenue } from './venue.js';
+import { createTracer } from './trace.js';
+import { initHelixLink } from './helix-link.js';
 
 const loader = new THREE.TextureLoader();
 function pbr(name, rx, ry, aniso) {
@@ -171,8 +173,11 @@ export function applyRealism(c) {
   const shift = (col, hue, e) => { if (hue) { col.getHSL(hsl); col.setHSL((hsl.h + hue) % 1, hsl.s, hsl.l); } return col.multiplyScalar(e); };
   const shiftIM = (im, hue, e) => { if (!im.instanceColor) return; for (let i = 0; i < im.count; i++) { im.getColorAt(i, lc); im.setColorAt(i, shift(lc, hue, e)); } im.instanceColor.needsUpdate = true; };
   let floorIM = null; scene.children.forEach(o => { if (o.isInstancedMesh && o.count === 80) floorIM = o; });
+  const tracer = createTracer({ fan: rigs[0], wallMat, W, D, H }); let lastR = performance.now();
   scene.onBeforeRender = () => {
     const Ls = window.club?.lights?.state;
+    if (window.club && !window.club.helix) { initHelixLink(window.club); window.club.tracer = tracer; }
+    const nowR = performance.now(); tracer.update(Ls, Math.min(.05, (nowR - lastR) / 1000)); lastR = nowR; // lasers follow Helix's picture
     if (Ls) { const e = Ls.blackout ? 0 : Ls.energy, hue = (Ls.palette + (Ls.invert ? .5 : 0)) % 1;
       if (e !== 1 || hue) {
         for (let i = 0; i < NS; i++) { lc.fromArray(sCol.array, i * 3); shift(lc, hue, e).toArray(sCol.array, i * 3); } sCol.needsUpdate = true;

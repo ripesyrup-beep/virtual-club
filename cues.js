@@ -31,7 +31,8 @@ export class CueEngine {
   }
   update(dt) {
     this.t += dt; const st = this.st;
-    if (this.analyser) this.analyse(dt);
+    const helixLive = this.ext && this.t - this.ext.at < 2;
+    if (this.analyser && !helixLive) this.analyse(dt);
     else { // sim: 128bpm, 8 bars open, 8 bars build, 8 bars drop (~45 s loop)
       const beatLen = 60 / this.bpm; const beats = this.t / beatLen; const nb = Math.floor(beats);
       st.beatPhase = beats - nb; st.beatCount = nb; st.bpm = this.bpm;
@@ -43,6 +44,7 @@ export class CueEngine {
       st.section = this.forced; st.buildProgress = this.forced === 'build' ? Math.min(1, (this.t - this.buildStart) / 15) : 0;
       if (!this.analyser) { /* keep sim beat */ } }
     st.intensity = st.section === 'open' ? .3 : st.section === 'build' ? .4 + .5 * st.buildProgress : 1;
+    if (this.ext && this.t - this.ext.at < 2) { if (this.ext.intensity != null) st.intensity = this.ext.intensity; if (this.ext.buildProgress != null && !this.forced) st.buildProgress = this.ext.buildProgress; } // Helix is the source of truth
     return st;
   }
   analyse(dt) { // energy + bass onset beat detection; section from energy relative to recent peak and trend
