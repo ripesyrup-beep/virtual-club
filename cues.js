@@ -1,5 +1,5 @@
 // Cue engine: open/build/drop + beat. Sources: sim (fake cue generator), demo (procedural track), mic, file.
-// Later: a LiveKit data-channel source can call engine.ingest({section, beat, bpm}) from Bryan's cue bridge.
+// Later: a LiveKit data-channel source can call engine.ingest({section, beat, bpm}) from the cue bridge.
 export class CueEngine {
   constructor() {
     this.source = 'sim'; this.forced = null; this.bpm = 128; this.t = 0;
