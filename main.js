@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { VRButton } from './vendor/webxr/VRButton.js';
 import { CueEngine } from './cues.js';
+import { applyRealism } from './realism.js';
 
 const LIME = 0xa6ff00;
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -159,6 +160,7 @@ const bn = makeLabel('BOT NIGHT PREVIEW', '#a6ff00', 40); bn.position.set(0, 2.9
 
 // ---------- cues ----------
 const cues = new CueEngine();
+const realism = applyRealism({ hemi, wash, bots, rigs: [fanRig, gridL, gridR], camera, hazeMap: hTex, scene, renderer, roomMats, bar, booth, balc, wallMat, W, D, H, LIME });
 window.club = { cues, setVideoStream, clearVideo, scene, renderer, rig };
 
 // ---------- controls ----------
@@ -241,9 +243,9 @@ function drawWall(t, st) { const g = wctx, w = wallCanvas.width, h = wallCanvas.
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime; const st = cues.update(dt);
   updateHands(dt); move(dt);
-  if (st.section !== lastSec) { lastSec = st.section; $('#sec').textContent = st.section.toUpperCase(); if (st.section === 'drop') flashV = 1; }
+  if (st.section !== lastSec) { lastSec = st.section; $('#sec').textContent = st.section.toUpperCase(); if (st.section === 'drop') flashV = .45; }
   $('#bpm').textContent = `${Math.round(st.bpm)} bpm · ${cues.source}`;
-  if (st.beatCount !== lastBeat) { lastBeat = st.beatCount; beatPulse = 1; if (st.section === 'drop' && st.beatCount % 2 === 0) flashV = Math.max(flashV, .55); }
+  if (st.beatCount !== lastBeat) { lastBeat = st.beatCount; beatPulse = 1; if (st.section === 'drop' && st.beatCount % 2 === 0) flashV = Math.max(flashV, .18); }
   beatPulse *= Math.pow(.02, dt); const beatPh = st.beatPhase;
   // lasers: fan
   const sec = st.section; const fanN = sec === 'open' ? 2 : sec === 'build' ? [2, 4, 8, 16][Math.min(3, Math.floor(st.buildProgress * 4))] : 16;
@@ -260,12 +262,12 @@ renderer.setAnimationLoop(() => {
   const rate = sec === 'open' ? 0 : sec === 'build' ? 1 + st.buildProgress * 14 : 10; strobeT += dt * rate;
   if (strobeT >= 1) { strobeT = 0; strobeOn = true; } else if (strobeT > .25) strobeOn = false;
   strobes.forEach((s, i) => s.material.color.setHex(strobeOn && (sec === 'drop' || i % 2 === st.beatCount % 2) ? 0xffffff : 0x1a1a1a));
-  if (sec === 'drop' && strobeOn) flashV = Math.max(flashV, .25);
+  if (sec === 'drop' && strobeOn) flashV = Math.max(flashV, .08);
   strobes.forEach(s => { const on = s.material.color.r > .5; s.userData.glow.material.opacity = on ? .9 : 0; });
   halo.material.opacity = .22 + st.intensity * .25 + beatPulse * .15; trimGlows.forEach(gw => gw.material.opacity = .25 + beatPulse * .35);
   [fanRig, gridL, gridR].forEach((rg, k) => rg.g.userData.glow.material.opacity = k ? (sec === 'drop' ? .9 : .15) : .5 + beatPulse * .5);
   [fanRig, gridL, gridR].forEach(rg => rg.beams.forEach(m => { const c = m.userData.cone.material.uniforms; c.color.value.copy(m.material.uniforms.color.value); c.op.value = m.material.uniforms.op.value * (sec === 'drop' ? .035 : .07); }));
-  flash.material.opacity = flashV * .85; flashV *= Math.pow(.0005, dt);
+  flash.material.opacity = flashV * .6; flashV *= Math.pow(.0005, dt);
   hemi.intensity = sec === 'open' ? .2 + .08 * Math.sin(t * 1.3) : .25 + (strobeOn ? 1.5 : 0) + beatPulse * .3;
   wash.intensity = (sec === 'open' ? 10 + 8 * Math.sin(t * .8) : sec === 'build' ? 15 + 25 * st.buildProgress : 45) * (1 + beatPulse);
   // floor
@@ -294,7 +296,7 @@ renderer.setAnimationLoop(() => {
     const e = st.intensity * (.6 + .4 * beatPulse); b.glowE += (e - b.glowE) * Math.min(1, dt * 6);
     b.body.material.emissiveIntensity = .35 + b.glowE * 1.6; b.aura.material.opacity = .12 + b.glowE * .55; b.aura.scale.setScalar(1.4 + b.glowE * 1.2);
     b.eyeGlow.forEach(s => s.material.opacity = .5 + b.glowE * .5); });
-  drawWall(t, st);
+  drawWall(t, st); realism(t, st, beatPulse);
   renderer.render(scene, camera);
 });
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
