@@ -10,7 +10,12 @@ export class CueEngine {
   force(s) { this.forced = s === 'auto' ? null : s; if (s === 'build') this.buildStart = this.t; }
   ingest(cue) { this.ext = { ...cue, at: this.t }; } // external cue hook
   async ensureCtx() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); if (this.ctx.state !== 'running') await this.ctx.resume(); }
-  stopAudio() { try { this.node?.stop?.(); } catch {} this.node?.disconnect(); this.node = null; this.stream?.getTracks().forEach(t => t.stop()); this.stream = null; this.el?.pause(); }
+  // Host-mode helpers. A 'host' stream is owned by host.js, so stopAudio() never stops its tracks.
+  async setStream(stream) { await this.setSource('host', stream); }
+  tap() { const now = performance.now() / 1000; const ts = (this.taps || []).filter(x => now - x < 2); ts.push(now); this.taps = ts.slice(-5);
+    if (this.taps.length >= 2) { const iv = (this.taps.at(-1) - this.taps[0]) / (this.taps.length - 1); this.bpm = Math.max(60, Math.min(200, 60 / iv)); this.st.bpm = this.bpm;
+      if (this.analyser) { this.beatIntervals = [iv]; this.lastBeatT = this.t; } } return this.bpm; }
+  stopAudio() { try { this.node?.stop?.(); } catch {} this.node?.disconnect(); this.node = null; if (this.source !== 'host') this.stream?.getTracks().forEach(t => t.stop()); this.stream = null; this.el?.pause(); }
   attach(node, toSpeakers = true) { this.analyser = this.ctx.createAnalyser(); this.analyser.fftSize = 1024; this.analyser.smoothingTimeConstant = .3;
     node.connect(this.analyser); if (toSpeakers) this.analyser.connect(this.ctx.destination); this.freq = new Uint8Array(this.analyser.frequencyBinCount); this.peak = 1e-4; this.prevBass = 0; }
   async setSource(src, file) {
@@ -20,6 +25,8 @@ export class CueEngine {
     if (src === 'demo') { const buf = this.demoBuf || (this.demoBuf = await renderDemo(this.ctx.sampleRate)); const n = this.ctx.createBufferSource(); n.buffer = buf; n.loop = true; this.attach(n); n.start(); this.node = n; }
     if (src === 'mic') { try { this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false } }); const n = this.ctx.createMediaStreamSource(this.stream); this.attach(n, false); this.node = n; }
       catch (e) { alert('Mic unavailable: ' + e.message); this.source = 'sim'; } }
+    if (src === 'host') { // host mode: a captured MediaStream (Helix window audio, mic or loopback). Analysed only, never sent to speakers (no echo).
+      this.stream = file; const n = this.ctx.createMediaStreamSource(file); this.attach(n, false); this.node = n; }
     if (src === 'file') { const buf = await this.ctx.decodeAudioData(await file.arrayBuffer()); const n = this.ctx.createBufferSource(); n.buffer = buf; n.loop = true; this.attach(n); n.start(); this.node = n; }
   }
   update(dt) {

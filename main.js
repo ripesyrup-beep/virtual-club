@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { VRButton } from './vendor/webxr/VRButton.js';
 import { CueEngine } from './cues.js';
 import { applyRealism } from './realism.js';
+import { initHost } from './host.js';
 
 const LIME = 0xa6ff00;
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -162,6 +163,7 @@ const bn = makeLabel('BOT NIGHT PREVIEW', '#a6ff00', 40); bn.position.set(0, 2.9
 const cues = new CueEngine();
 const realism = applyRealism({ hemi, wash, bots, rigs: [fanRig, gridL, gridR], camera, hazeMap: hTex, scene, renderer, roomMats, bar, booth, balc, wallMat, W, D, H, LIME });
 window.club = { cues, setVideoStream, clearVideo, scene, renderer, rig };
+const host = initHost(window.club); const L = window.club.lights.state; // host mode: ?host or H key; club.lights.set/get/on, club.net hooks (host.js)
 
 // ---------- controls ----------
 const keys = {}; let yaw = 0, pitch = 0; const joy = { x: 0, y: 0 };
@@ -228,7 +230,7 @@ function syncBtns() { document.querySelectorAll('[data-src]').forEach(b => b.cla
 
 // ---------- render loop ----------
 const clock = new THREE.Clock(); const tmpC = new THREE.Color(); const target = new THREE.Vector3();
-let lastSec = '', flashV = 0, lastBeat = -1, beatPulse = 0, strobeT = 0, strobeOn = false;
+let lastSec = '', lt = 0, flashV = 0, lastBeat = -1, beatPulse = 0, strobeT = 0, strobeOn = false;
 function drawWall(t, st) { const g = wctx, w = wallCanvas.width, h = wallCanvas.height, S = w / 512; const e = st.intensity;
   g.globalCompositeOperation = 'source-over'; g.fillStyle = `rgba(0,0,0,${st.section === 'drop' ? .35 : .15})`; g.fillRect(0, 0, w, h);
   g.globalCompositeOperation = 'lighter'; const n = st.section === 'open' ? 6 : st.section === 'build' ? 6 + Math.floor(st.buildProgress * 18) : 24;
@@ -242,6 +244,7 @@ function drawWall(t, st) { const g = wctx, w = wallCanvas.width, h = wallCanvas.
 
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), .05), t = clock.elapsedTime; const st = cues.update(dt);
+  lt += L.freeze ? 0 : dt * L.speed; host.tick(st); // laser clock: K2 speed, P5 freeze
   updateHands(dt); move(dt);
   if (st.section !== lastSec) { lastSec = st.section; $('#sec').textContent = st.section.toUpperCase(); if (st.section === 'drop') flashV = .45; }
   $('#bpm').textContent = `${Math.round(st.bpm)} bpm · ${cues.source}`;
@@ -251,12 +254,12 @@ renderer.setAnimationLoop(() => {
   const sec = st.section; const fanN = sec === 'open' ? 2 : sec === 'build' ? [2, 4, 8, 16][Math.min(3, Math.floor(st.buildProgress * 4))] : 16;
   fanRig.beams.forEach((m, i) => { m.visible = i < fanN; if (!m.visible) return;
     const spread = sec === 'open' ? .8 : sec === 'build' ? .7 : 1.3; const k = fanN === 1 ? 0 : i / (fanN - 1) - .5;
-    const sweep = sec === 'open' ? Math.sin(t * .35) * .5 : sec === 'build' ? Math.sin(t * (1 + st.buildProgress * 3)) * .35 : Math.sin(t * 4 + i) * .2;
-    const ang = k * spread * 2 + sweep; target.set(fanRig.g.position.x + Math.sin(ang) * 20, sec === 'drop' ? (i % 2 ? .3 : 3) : 1.2 + Math.sin(t * .5 + i) * .8, fanRig.g.position.z + Math.cos(ang) * 20);
+    const sweep = L.motion * (sec === 'open' ? Math.sin(lt * .35) * .5 : sec === 'build' ? Math.sin(lt * (1 + st.buildProgress * 3)) * .35 : Math.sin(lt * 4 + i) * .2);
+    const ang = k * spread * 2 + sweep; target.set(fanRig.g.position.x + Math.sin(ang) * 20, sec === 'drop' ? (i % 2 ? .3 : 3) : 1.2 + Math.sin(lt * .5 + i) * .8 * L.motion, fanRig.g.position.z + Math.cos(ang) * 20);
     m.lookAt(target); m.material.uniforms.op.value = (sec === 'open' ? .35 + .2 * Math.sin(t * 1.2) : sec === 'build' ? .5 : .9) * (1 + beatPulse * .6);
     m.material.uniforms.color.value.setHSL(sec === 'drop' ? (i % 3 === 0 ? .23 : (t * .1 + i * .07) % 1) : .23, 1, sec === 'drop' && i % 4 === 0 ? .8 : .5); });
   [gridL, gridR].forEach((rg, side) => rg.beams.forEach((m, i) => { m.visible = sec === 'drop' || (sec === 'build' && st.buildProgress > .75 && i % 3 === 0);
-    if (!m.visible) return; const sx = side ? -1 : 1; target.set(sx * W * .9, .4 + (i % 5) * 1.3 + Math.sin(t * 6 + i) * .2, -D / 2 + 3 + Math.floor(i / 5) * 14 + (i % 5) * 2.5);
+    if (!m.visible) return; const sx = side ? -1 : 1; target.set(sx * W * .9, .4 + (i % 5) * 1.3 + Math.sin(lt * 6 + i) * .2 * L.motion, -D / 2 + 3 + Math.floor(i / 5) * 14 + (i % 5) * 2.5);
     m.lookAt(target); m.material.uniforms.op.value = .7 + beatPulse * .3; m.material.uniforms.color.value.setHex(i % 2 ? LIME : 0xff2266); }));
   // strobes
   const rate = sec === 'open' ? 0 : sec === 'build' ? 1 + st.buildProgress * 14 : 10; strobeT += dt * rate;
@@ -296,7 +299,15 @@ renderer.setAnimationLoop(() => {
     const e = st.intensity * (.6 + .4 * beatPulse); b.glowE += (e - b.glowE) * Math.min(1, dt * 6);
     b.body.material.emissiveIntensity = .35 + b.glowE * 1.6; b.aura.material.opacity = .12 + b.glowE * .55; b.aura.scale.setScalar(1.4 + b.glowE * 1.2);
     b.eyeGlow.forEach(s => s.material.opacity = .5 + b.glowE * .5); });
-  drawWall(t, st); realism(t, st, beatPulse);
+  drawWall(t, st); realism(t, st, beatPulse); applyLights();
   renderer.render(scene, camera);
 });
+// host lights post-pass (after realism so Vision Pro Bot's colours are the base): K1 energy, K3 palette, P4 invert, P6 clear = blackout
+const hsl = {}, wallBase = wallMat.color.clone();
+function applyLights() { const e = L.blackout ? 0 : L.energy, hue = (L.palette + (L.invert ? .5 : 0)) % 1;
+  [fanRig, gridL, gridR].forEach(rg => { rg.g.userData.glow.material.opacity *= e; rg.beams.forEach(m => { if (!m.visible) return; if (L.blackout) { m.visible = false; return; }
+    for (const u of [m.material.uniforms, m.userData.cone.material.uniforms]) { u.op.value *= e; if (hue) { u.color.value.getHSL(hsl); u.color.value.setHSL((hsl.h + hue) % 1, hsl.s, hsl.l); } } }); });
+  if (e !== 1) { hemi.intensity *= e; wash.intensity *= e; strobes.forEach(s => s.userData.glow.material.opacity *= e); halo.material.opacity *= e; flash.material.opacity *= Math.min(1, e); }
+  wallMat.color.copy(wallBase).multiplyScalar(L.blackout ? .02 : 1);
+  if (L.blackout || L.invert) { for (let i = 0; i < PN * PM; i++) { floorPanels.getColorAt(i, tmpC); if (L.blackout) tmpC.setRGB(0, 0, 0); else tmpC.setRGB(1 - tmpC.r, 1 - tmpC.g, 1 - tmpC.b).multiplyScalar(.5); floorPanels.setColorAt(i, tmpC); } floorPanels.instanceColor.needsUpdate = true; } }
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
