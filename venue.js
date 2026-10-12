@@ -85,7 +85,7 @@ export function applyVenue({ scene, booth, bar, balc, rigs, wallMat, W, D, H, LI
   scene.children.forEach(o => { if (o.isSprite && Math.abs(o.position.y - 8.15) < .05 && Math.abs(Math.abs(o.position.x) - 7) < .05) o.material.color.set(0x5a7cff); }); // LED-wall corner glows
   scene.children.forEach(o => { if (o.isSprite && o.userData.relabel) relabel(o, ...o.userData.relabel); });
   const c = new THREE.Color();
-  return function update(t, st, beatPulse) {
+  const update = function (t, st, beatPulse) {
     const sec = st.section;
     for (let i = 0; i < NH; i++) { const r = Math.floor(i / per), k = i % per;
       if (sec === 'open') c.set(0x2a4dff).multiplyScalar(.5 + .5 * Math.sin(t * 1.2 + k * .6 + r));
@@ -101,4 +101,6 @@ export function applyVenue({ scene, booth, bar, balc, rigs, wallMat, W, D, H, LI
       m.material.uniforms.color.value.copy(PAL[pk]); m.userData.cone.material.uniforms.color.value.copy(PAL[pk]); }));
     rigs.forEach(rg => rg.g.userData.glow.material.color.copy(PAL[sec === 'drop' ? 1 : 0]));
   };
+  update.lens = lens;
+  return update;
 }

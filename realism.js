@@ -125,7 +125,11 @@ export function applyRealism(c) {
   const posts = balc.children.filter(o => o.isMesh && o.material === stoolMat);
 
   // ---- LED wall: pixel-grid / sub-pixel look + bezel (keeps wallMat so the Helix video hook still works) ----
-  wallMat.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+  const wallU = { uSplit: { value: 0 }, uBlend: { value: 0 }, uTint: { value: new THREE.Color(0x2a5cff) } };
+  wallMat.onBeforeCompile = sh => { Object.assign(sh.uniforms, wallU);
+    sh.fragmentShader = 'uniform float uSplit; uniform float uBlend; uniform vec3 uTint;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      if (uSplit > 0.001) { vec2 o = vec2(uSplit * .025, 0.); diffuseColor.r = texture2D(map, vMapUv + o).r; diffuseColor.b = texture2D(map, vMapUv - o).b; }
+      diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * uTint * 1.6 + uTint * .08, uBlend);
       { vec2 px = vMapUv*vec2(224.,112.); vec2 f = fract(px)-.5; float dotm = smoothstep(.5,.28,max(abs(f.x),abs(f.y)));
         float seam = step(.015, fract(vMapUv.x*4.)) * step(.02, fract(vMapUv.y*2.));
         diffuseColor.rgb = diffuseColor.rgb*(.25+1.15*dotm)*mix(.35,1.,seam) + vec3(.004,.006,.004); }`); };
@@ -162,7 +166,29 @@ export function applyRealism(c) {
   const hazeBatch = batch.sprites.find(m => m.material.uniforms.map.value === hazeMap);
 
   const tmp = new THREE.Color(), dn = new THREE.Vector3(), hz = new THREE.Color(), LIMEc = new THREE.Color(LIME);
-  return function update(t, st, beatPulse) {
+  // ---- host lights post-pass: runs at render time (after main.js applyLights) so host energy/palette/invert/blackout win ----
+  const hsl = {}; const lc = new THREE.Color();
+  const shift = (col, hue, e) => { if (hue) { col.getHSL(hsl); col.setHSL((hsl.h + hue) % 1, hsl.s, hsl.l); } return col.multiplyScalar(e); };
+  const shiftIM = (im, hue, e) => { if (!im.instanceColor) return; for (let i = 0; i < im.count; i++) { im.getColorAt(i, lc); im.setColorAt(i, shift(lc, hue, e)); } im.instanceColor.needsUpdate = true; };
+  let floorIM = null; scene.children.forEach(o => { if (o.isInstancedMesh && o.count === 80) floorIM = o; });
+  scene.onBeforeRender = () => {
+    const Ls = window.club?.lights?.state;
+    if (Ls) { const e = Ls.blackout ? 0 : Ls.energy, hue = (Ls.palette + (Ls.invert ? .5 : 0)) % 1;
+      if (e !== 1 || hue) {
+        for (let i = 0; i < NS; i++) { lc.fromArray(sCol.array, i * 3); shift(lc, hue, e).toArray(sCol.array, i * 3); } sCol.needsUpdate = true;
+        shiftIM(poolIM, hue, e); shiftIM(ringIM, hue, e); if (venue.lens) shiftIM(venue.lens, hue, e);
+        if (floorIM) shiftIM(floorIM, Ls.palette % 1, e); // main.js already applied invert/blackout to the floor
+        reflMat.uniforms.op.value *= e; bots.forEach(b => shift(b.visor.material.color, hue, Math.max(e, .15)));
+        if (hazeBatch) shift(hazeBatch.material.uniforms.tint.value, hue, e); }
+      { const k = Ls.blackout ? .03 : Math.min(Ls.energy, 1.5); // room lighting follows energy / blackout (lightmaps + env reflections)
+        roomMats.forEach((m, i) => { m.userData.b ??= [m.lightMapIntensity, m.envMapIntensity];
+          if (i === 3) { m.lightMapIntensity *= k; m.envMapIntensity *= k; } else { m.lightMapIntensity = m.userData.b[0] * k; m.envMapIntensity = m.userData.b[1] * k; } }); }
+      wallU.uSplit.value = Ls.rgbSplit; wallU.uBlend.value = Ls.blendAmt; wallU.uTint.value.set(0x2a5cff); shift(wallU.uTint.value, (hue + Ls.manualA) % 1, 1); }
+    batch.sync();
+  };
+  let tl = 0, lastT0 = null;
+  return function update(t0, st, beatPulse) {
+    const Lh = window.club?.lights?.state; if (lastT0 === null) lastT0 = t0; tl += Lh?.freeze ? 0 : (t0 - lastT0) * (Lh?.speed ?? 1); lastT0 = t0; const t = tl; // freeze/speed apply to our motion too
     const sec = st.section, e = st.intensity;
     // drop/build tuning: less flat green wash, colour that moves with the song
     hemi.intensity *= sec === 'drop' ? .35 : .55;
@@ -190,7 +216,6 @@ export function applyRealism(c) {
       ringIM.setColorAt(i, tmp.set(b.color).multiplyScalar(.25 + b.glowE * .9)); });
     ringIM.instanceMatrix.needsUpdate = ringIM.instanceColor.needsUpdate = true;
     venue(t, st, beatPulse);
-    batch.sync();
     // fps hud
     pollX(); const now = performance.now(); acc += now - lastT; lastT = now; frames++;
     if (acc > 500) { fps = frames * 1000 / acc; frames = 0; acc = 0; if (fpsOn) { const txt = `${fps.toFixed(0)} fps  ${info.calls} calls  ${(info.triangles / 1000).toFixed(1)}k tris`;
